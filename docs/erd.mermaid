@@ -1,0 +1,107 @@
+erDiagram
+    leads ||--o{ lead_contacts : "has"
+    agents ||--o{ leads : "currently owns"
+    leads ||--o{ assignment_events : "assignment history"
+    agents ||--o{ assignment_events : "receives"
+    leads ||--o{ lead_status_history : "status changes"
+    assignment_events ||--o| notifications : "triggers"
+    agents ||--o{ notifications : "receives"
+    agents |o--o| assignment_state : "last assigned"
+
+    lead_contacts {
+        uuid id PK
+        uuid lead_id FK "each contact belongs to one lead"
+        text name
+        text phone UK "normalized"
+        text email UK "lowercased"
+        timestamptz created_at
+    }
+
+    lead_queue {
+        uuid id PK
+        text external_lead_id UK
+        text name
+        text phone "normalized"
+        text email "lowercased"
+        text source
+        text project
+        numeric budget
+        text message
+        timestamptz source_created_at
+        int attempts "failed attempts only"
+        timestamptz last_attempt_at
+        timestamptz next_attempt_at "backoff"
+        timestamptz parked_at "set after 5 failures"
+        text last_error
+        timestamptz created_at
+    }
+
+    leads {
+        uuid id PK
+        text external_lead_id UK "e.g. LD1001"
+        uuid assigned_agent_id FK "not null, lead exists only once assigned"
+        text source
+        text project
+        numeric budget
+        text message "from the incoming payload"
+        text notes "internal notes by agents"
+        text status "check: assigned, contacted, qualified, closed"
+        timestamptz source_created_at "createdAt from the payload"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    agents {
+        uuid id PK
+        text name
+        text phone
+        text email
+        boolean is_online
+        timestamptz last_seen_at
+        int sort_order "fixed round-robin order"
+    }
+
+    assignment_events {
+        uuid id PK
+        uuid lead_id FK
+        uuid agent_id FK
+        uuid previous_agent_id FK "null on first assignment"
+        int sequence_no
+        text reason "auto (manual, reassigned reserved)"
+        uuid assigned_by "null means system"
+        timestamptz created_at
+    }
+
+    lead_status_history {
+        uuid id PK
+        uuid lead_id FK
+        text status "status the lead entered"
+        uuid changed_by "null on auto-assignment"
+        timestamptz created_at
+    }
+
+    webhook_events {
+        uuid id PK
+        jsonb raw_payload
+        text status "accepted, invalid, duplicate, unauthorized"
+        text error_message
+        text external_lead_id "nullable"
+        timestamptz received_at
+    }
+
+    notifications {
+        uuid id PK
+        uuid agent_id FK
+        uuid assignment_event_id FK "lead reached via the event"
+        text type "lead_assigned"
+        text message
+        boolean is_read
+        timestamptz created_at
+    }
+
+    assignment_state {
+        int id PK "single row"
+        uuid last_assigned_agent_id FK "on delete restrict"
+        int last_sequence_no
+        timestamptz updated_at
+    }
