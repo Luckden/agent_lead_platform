@@ -179,11 +179,9 @@ Chosen: Supabase Realtime for the live board and notifications (core to ADR-0014
 
 ## 9. Open questions
 
-- Pointer versus "oldest last-assigned" queue for round-robin (ADR-0005 is Proposed).
-- Duplicate response code: 200 with `duplicate: true` versus 409 (ADR-0011).
-- Should a duplicate's new message be appended to `leads.notes`?
-- Is the periodic sweep wanted, or are the new-lead and agent-online triggers enough (ADR-0015)?
 - Is "no manual assignment" acceptable for the brief's "assign a lead to an agent" requirement (ADR-0014)?
+
+Resolved: round-robin by pointer (ADR-0005), 200 for duplicates and no copying of duplicate messages into notes (ADR-0011), sweep kept (ADR-0015), act-as-agent dropdown (ADR-0010).
 
 ## 10. Deliverables checklist
 

@@ -1,6 +1,6 @@
 # ADR-0011: Log every incoming request; duplicates are not reassigned
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-30
 
 ## Context
@@ -15,4 +15,5 @@ The brief requires raw payload logging for audit and graceful handling of invali
 ## Consequences
 - Retries are safe and idempotent.
 - Troubleshooting is possible from the raw log even when a request was rejected.
-- Open: whether to return 409 instead of 200, and whether a duplicate's new message should be appended to `leads.notes`.
+- 409 was rejected: a duplicate is a successful, idempotent retry, and some senders retry on any 4xx.
+- A duplicate's new message is not copied into `leads.notes`. Notes are the agents' own internal remarks; the customer's repeat message stays in the raw payload in `webhook_events`.

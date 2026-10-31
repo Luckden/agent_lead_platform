@@ -1,6 +1,6 @@
 # ADR-0015: Queue retries with backoff, parking after repeated failures, and a periodic sweep
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-30
 
 ## Context
