@@ -20,5 +20,7 @@
 | [0016](0016-ui-data-access.md) | Writes via API routes; browser reads via Realtime | Accepted |
 | [0017](0017-duplicate-matching-links-identifiers.md) | Duplicate matching links identifiers to one lead | Proposed |
 | [0018](0018-smaller-decisions.md) | Smaller decisions (status, eligibility, notifications, deletes, token) | Accepted |
+| [0019](0019-manual-assignment-overrides.md) | Manual assignment and reassignment as operator overrides | Proposed |
+| [0020](0020-serialize-duplicate-matching-across-queue-and-leads.md) | Serialize duplicate matching across queue and assigned leads | Proposed |
 
-Related: [RFC-0001](../rfc/0001-lead-intake-and-assignment.md), [ERD](../erd.mermaid).
+Related: [RFC-0001](../rfc/0001-lead-intake-and-assignment.md), [RFC-0002](../rfc/0002-assignment-overrides-and-duplicate-safety.md), [ERD](../erd.mermaid).

@@ -3,8 +3,10 @@ erDiagram
     agents ||--o{ leads : "currently owns"
     leads ||--o{ assignment_events : "assignment history"
     agents ||--o{ assignment_events : "receives"
+    agents o|--o{ assignment_events : "previous owner"
+    agents o|--o{ assignment_events : "assigned by"
     leads ||--o{ lead_status_history : "status changes"
-    assignment_events ||--o| notifications : "triggers"
+    assignment_events ||--|| notifications : "creates"
     agents ||--o{ notifications : "receives"
     agents |o--o| assignment_state : "last assigned"
 
@@ -67,8 +69,8 @@ erDiagram
         uuid agent_id FK
         uuid previous_agent_id FK "null on first assignment"
         int sequence_no
-        text reason "auto (manual, reassigned reserved)"
-        uuid assigned_by "null means system"
+        text reason "auto; manual/reassigned proposed"
+        uuid assigned_by FK "nullable; null means system"
         timestamptz created_at
     }
 

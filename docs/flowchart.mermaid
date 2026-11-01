@@ -1,0 +1,51 @@
+flowchart TD
+    start([Incoming lead request]) --> log_request[Write webhook event with raw payload]
+    log_request --> authorized{Bearer token valid?}
+    authorized -- No --> unauthorized[Set outcome to unauthorized]
+    unauthorized --> response_401([Return 401])
+    authorized -- Yes --> valid_payload{Payload valid?}
+    valid_payload -- No --> invalid[Set outcome to invalid and record validation errors]
+    invalid --> response_400([Return 400])
+    valid_payload -- Yes --> normalize[Normalize phone and email]
+    normalize --> lock_ids[Lock supplied lead ID, phone, and email keys in sorted order]
+    lock_ids --> duplicate{Match in queue or assigned lead contacts?}
+
+    duplicate -- Yes --> resolve_duplicate[Apply duplicate rule; attach unclaimed identifiers]
+    resolve_duplicate --> identity_conflict{Phone and email match different leads?}
+    identity_conflict -- Yes --> conflict_log[Keep older lead; record conflicting IDs]
+    identity_conflict -- No --> duplicate_log[Set webhook outcome to duplicate]
+    conflict_log --> duplicate_log
+    duplicate_log --> response_200([Return 200 with existing lead ID])
+
+    duplicate -- No --> enqueue[Insert lead into lead_queue]
+    enqueue --> worker[Assignment worker claims oldest eligible row]
+    worker --> lock_state[Lock assignment_state]
+    lock_state --> agent_available{Any online agent?}
+    agent_available -- No --> remain_queued[Keep lead queued; no failure recorded]
+    remain_queued --> accepted_queued[Set webhook outcome to accepted]
+    accepted_queued --> response_202([Return 202 queued])
+    remain_queued -. Agent comes online or periodic sweep .-> worker
+
+    agent_available -- Yes --> choose_agent[Choose next online agent by round-robin order]
+    choose_agent --> auto_commit[Atomic transaction: create lead and contacts, initial status, assignment event, notification; advance pointer; remove queue row]
+    auto_commit --> accepted_assigned[Set webhook outcome to accepted]
+    accepted_assigned --> response_201([Return 201 with assigned agent])
+
+    auto_commit -. Transaction fails and rolls back .-> record_failure[Record failed attempt, error, and backoff time]
+    record_failure --> retry_limit{Five failed attempts reached?}
+    retry_limit -- No --> retry_wait[Keep queued until backoff expires]
+    retry_wait --> worker
+    retry_limit -- Yes --> parked[Set parked_at; show as needing attention]
+    parked -. Periodic sweep retries when eligible .-> worker
+
+    subgraph operator_override[Manual assignment and reassignment - proposed]
+        board_action[Operator selects queued lead or existing lead] --> target_online{Selected agent online?}
+        target_online -- No --> reject_manual[Reject without changing lead or queue]
+        target_online -- Yes --> lock_target[Lock target row, then assignment_state]
+        lock_target --> assignment_kind{Queued lead or existing lead?}
+        assignment_kind -- Queued --> manual_assign[Create lead, contacts, initial status, manual event; remove queue row]
+        assignment_kind -- Existing --> reassign[Update current owner; append reassigned event; preserve status and notes]
+        manual_assign --> manual_commit[In same transaction, notify recipient and advance sequence and pointer]
+        reassign --> manual_commit
+        manual_commit --> manual_result([Show successful assignment in live feed])
+    end
