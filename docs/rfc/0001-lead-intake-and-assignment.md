@@ -1,6 +1,6 @@
 # RFC-0001: Incoming Lead API and Lead Management Mini System
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Date:** 2026-10-30
 - **Author:** (your name)
 - **Related:** [RFC-0002 amendment](0002-assignment-overrides-and-duplicate-safety.md), [ADR index](../adr/README.md), [ERD](../erd.mermaid), [lead intake and assignment flowchart](../flowchart.mermaid)
@@ -19,7 +19,7 @@ A property agency receives enquiries (for example from Facebook Ads). Each enqui
 - Accept lead payloads at `POST /api/leads/incoming`, with token auth, validation, and duplicate handling.
 - Persist leads, agents, status history, assignments, raw payload logs, and notifications in Supabase.
 - Assign in round-robin order across online agents, skipping offline agents, and keep the order stable as agents come and go.
-- Let an operator assign a queued lead to an online agent or reassign an existing lead, while preserving the automatic round-robin path (ADR-0019, proposed).
+- Let an operator assign a queued lead to an online agent or reassign an existing lead, while preserving the automatic round-robin path (ADR-0019).
 - Provide a simple UI centred on a live assignment board (agent ring, lead queue, and assignment feed updating in real time), plus a lead list and detail view with status updates and notes.
 - Document the design so it can be reviewed and discussed.
 
@@ -100,7 +100,7 @@ Every request, including 400 and 401, writes a `webhook_events` row.
 
 A lead is a duplicate if its `leadId` already exists, or its normalized phone or email matches a `lead_contacts` row or a `lead_queue` row. A duplicate does not create a new lead and does not trigger a new assignment. The raw payload is logged, and the existing lead ID is returned. Identifiers that no lead holds yet are attached to the existing lead; if phone and email match two different leads, the older one is used and the conflict is logged (ADR-0017).
 
-To close the race between concurrent requests, intake is performed by one transactional database function. It acquires transaction-scoped advisory locks for each supplied external ID, normalized phone, and lowercased email, in deterministic sorted order, before checking either table. The locks remain held through matching and writing. Intake inserts, queued-identifier fills, and duplicate-driven identifier attachments use this function and protocol (ADR-0020, proposed). Queue-to-lead promotion atomically transfers existing identifiers; if an attachment waited for promotion and the queue row is gone, intake rechecks the assigned lead and attaches the identifier there. Per-table unique constraints remain as a secondary safeguard.
+To close the race between concurrent requests, intake is performed by one transactional database function. It acquires transaction-scoped advisory locks for each supplied external ID, normalized phone, and lowercased email, in deterministic sorted order, before checking either table. The locks remain held through matching and writing. Intake inserts, queued-identifier fills, and duplicate-driven identifier attachments use this function and protocol (ADR-0020). Queue-to-lead promotion atomically transfers existing identifiers; if an attachment waited for promotion and the queue row is gone, intake rechecks the assigned lead and attaches the identifier there. Per-table unique constraints remain as a secondary safeguard.
 
 ### 4.5 Assignment
 
@@ -115,7 +115,7 @@ Because the pointer is "who got the last lead", not a list index, agents can go 
 
 **Lead queue.** A lead with no available agent stays in `lead_queue`, oldest `created_at` first. The assignment function is re-run when an agent goes online, and by a periodic sweep as a backstop, until the queue is empty or nobody is online. "No agent online" is not a failure. If the function errors, the transaction rolls back, the lead remains queued, and it is retried with backoff and parked after 5 failed attempts. A `pg_cron` sweep every minute is the backstop (ADR-0015). Because a `leads` row exists only after successful assignment, `leads.status` and `leads.assigned_agent_id` are never null.
 
-**Manual assignment and reassignment (proposed).** From the live board, an operator can assign any queued lead, including a parked one, to an online agent, or reassign an existing lead to a different online agent. Each operation locks its target row and then `assignment_state`, and completes atomically. A queued lead follows the same creation steps as automatic assignment, with `reason = 'manual'`; reassignment updates the current owner and appends an event with `reason = 'reassigned'` and `previous_agent_id`. Both increment the sequence, advance the pointer to the recipient, and create a notification for that recipient. Reassignment does not change status or notes. The act-as-agent selection is recorded in `assigned_by`, but is not authenticated identity (ADR-0019).
+**Manual assignment and reassignment.** From the live board, an operator can assign any queued lead, including a parked one, to an online agent, or reassign an existing lead to a different online agent. Each operation locks its target row and then `assignment_state`, and completes atomically. A queued lead follows the same creation steps as automatic assignment, with `reason = 'manual'`; reassignment updates the current owner and appends an event with `reason = 'reassigned'` and `previous_agent_id`. Both increment the sequence, advance the pointer to the recipient, and create a notification for that recipient. Reassignment does not change status or notes. The act-as-agent selection is recorded in `assigned_by`, but is not authenticated identity (ADR-0019).
 
 ### 4.6 Presence
 
@@ -137,7 +137,7 @@ Using DaisyUI components (ADR-0014):
 - **Leads:** table of assigned leads with status and owner, and a detail panel for status updates, notes, and reassignment to another online agent.
 - **Notifications:** unread list for the selected agent.
 
-Automatic assignment remains the default; manual assignment and reassignment are proposed as operator overrides (ADR-0019).
+Automatic assignment remains the default; manual assignment and reassignment are operator overrides (ADR-0019).
 
 ### 4.10 Security and secrets
 
@@ -145,7 +145,7 @@ Secrets (Supabase URL, service role key, incoming API token) live in an env file
 
 ## 5. Alternatives considered
 
-See the ADRs for detail: building on an existing CRM (ADR-0001), contacts as a child of leads rather than many-to-many (ADR-0003), a lead queue instead of null status (ADR-0006), a queue timestamp instead of a pointer (ADR-0005), separate notes table (ADR-0008), the live board and Realtime (ADR-0014), browser writes with RLS (ADR-0016), manual assignment overrides (ADR-0019, proposed), and duplicate serialization (ADR-0020, proposed).
+See the ADRs for detail: building on an existing CRM (ADR-0001), contacts as a child of leads rather than many-to-many (ADR-0003), a lead queue instead of null status (ADR-0006), a queue timestamp instead of a pointer (ADR-0005), separate notes table (ADR-0008), the live board and Realtime (ADR-0014), browser writes with RLS (ADR-0016), manual assignment overrides (ADR-0019), and duplicate serialization (ADR-0020).
 
 ## 6. Edge cases
 
@@ -184,10 +184,9 @@ Chosen: Supabase Realtime for the live board and notifications (core to ADR-0014
 
 ## 9. Open questions
 
-- Should the proposed manual assignment and reassignment behavior be accepted? See ADR-0019 and RFC-0002.
 - Is the advisory-lock contract sufficient if independent identity writers are introduced, or should the schema move to a shared identifier registry? See ADR-0020.
 
-Resolved: round-robin by pointer (ADR-0005), 200 for duplicates and no copying of duplicate messages into notes (ADR-0011), sweep kept (ADR-0015), act-as-agent dropdown (ADR-0010). The two changes above remain proposals pending ADR acceptance.
+Resolved: round-robin by pointer (ADR-0005), 200 for duplicates and no copying of duplicate messages into notes (ADR-0011), sweep kept (ADR-0015), act-as-agent dropdown (ADR-0010). Manual assignment (ADR-0019) and duplicate serialization (ADR-0020) are accepted and implemented.
 
 ## 10. Deliverables checklist
 

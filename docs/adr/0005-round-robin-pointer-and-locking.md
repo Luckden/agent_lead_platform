@@ -1,6 +1,6 @@
 # ADR-0005: Round-robin using a stored pointer and a locked SQL function
 
-- **Status:** Accepted
+- **Status:** Accepted (pointer statement amended by ADR-0019: manual assignments also move the pointer)
 - **Date:** 2026-10-30
 
 ## Context

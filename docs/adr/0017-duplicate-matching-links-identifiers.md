@@ -1,6 +1,6 @@
 # ADR-0017: Duplicate matching links phone and email to one lead
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-30
 
 ## Context

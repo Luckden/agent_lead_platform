@@ -69,7 +69,7 @@ erDiagram
         uuid agent_id FK
         uuid previous_agent_id FK "null on first assignment"
         int sequence_no
-        text reason "auto; manual/reassigned proposed"
+        text reason "auto, manual or reassigned"
         uuid assigned_by FK "nullable; null means system"
         timestamptz created_at
     }
@@ -85,7 +85,7 @@ erDiagram
     webhook_events {
         uuid id PK
         jsonb raw_payload
-        text status "accepted, invalid, duplicate, unauthorized"
+        text status "received (interim), accepted, invalid, duplicate, unauthorized, error"
         text error_message
         text external_lead_id "nullable"
         timestamptz received_at

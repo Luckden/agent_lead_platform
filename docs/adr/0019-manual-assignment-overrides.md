@@ -1,6 +1,6 @@
 # ADR-0019: Manual assignment and reassignment as operator overrides
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-31
 - **Related:** [RFC-0002](../rfc/0002-assignment-overrides-and-duplicate-safety.md)
 

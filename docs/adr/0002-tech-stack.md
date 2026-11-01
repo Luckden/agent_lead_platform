@@ -1,6 +1,6 @@
 # ADR-0002: Next.js, TypeScript, hosted Supabase, DaisyUI, Zod
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-30
 
 ## Context

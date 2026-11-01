@@ -1,6 +1,6 @@
 # RFC-0002: Assignment Overrides and Duplicate-Safe Intake
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Date:** 2026-10-31
 - **Related:** [RFC-0001](0001-lead-intake-and-assignment.md), [ADR-0019](../adr/0019-manual-assignment-overrides.md), [ADR-0020](../adr/0020-serialize-duplicate-matching-across-queue-and-leads.md)
 
@@ -38,4 +38,4 @@ With the locks held, the function searches both queued and assigned records and 
 
 ## 5. Scope and Follow-Up
 
-These are proposed changes, pending acceptance of ADR-0019 and ADR-0020. The assignment actor remains simulated until real authentication is added. Advisory locks protect writes that follow the database function contract; if independent writers are introduced, revisit a shared identifier registry with declarative uniqueness.
+These changes are accepted (ADR-0019, ADR-0020) and implemented. The assignment actor remains simulated until real authentication is added. Advisory locks protect writes that follow the database function contract; if independent writers are introduced, revisit a shared identifier registry with declarative uniqueness.

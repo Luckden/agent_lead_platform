@@ -1,6 +1,6 @@
 # ADR-0013: Secrets in env files, schema as SQL migrations, optional Docker, no Terraform
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-30
 
 ## Context

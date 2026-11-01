@@ -1,6 +1,6 @@
-# ADR-0014: Live assignment board as the main screen; no manual assignment
+# ADR-0014: Live assignment board as the main screen
 
-- **Status:** Accepted
+- **Status:** Accepted (automatic-only rule superseded by ADR-0019)
 - **Date:** 2026-10-30
 
 ## Context
