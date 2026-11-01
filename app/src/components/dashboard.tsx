@@ -36,6 +36,34 @@ async function call(path: string, method: string, body?: unknown): Promise<strin
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString();
 
+const STATUS_BADGE: Record<string, string> = {
+  assigned: "badge-info", contacted: "badge-primary", qualified: "badge-accent", closed: "badge-success",
+};
+const statusBadge = (s: string) => STATUS_BADGE[s.toLowerCase()] ?? "badge-neutral";
+
+function Initials({ name, online }: { name: string; online?: boolean }) {
+  const initials = name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <div className={`avatar avatar-placeholder ${online === undefined ? "" : online ? "avatar-online" : "avatar-offline"}`}>
+      <div className="w-9 rounded-full bg-neutral text-neutral-content text-xs">{initials}</div>
+    </div>
+  );
+}
+
+function Stat({ title, value, desc }: { title: string; value: number | string; desc?: string }) {
+  return (
+    <div className="stat px-5 py-3">
+      <div className="stat-title">{title}</div>
+      <div className="stat-value text-2xl">{value}</div>
+      {desc && <div className="stat-desc">{desc}</div>}
+    </div>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="py-6 text-center text-sm text-base-content/60">{children}</p>;
+}
+
 export function Dashboard() {
   const [tab, setTab] = useState<Tab>("board");
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -48,6 +76,12 @@ export function Dashboard() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), toast.kind === "error" ? 8000 : 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const agentName = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents]);
 
@@ -121,9 +155,9 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto w-full max-w-6xl p-4">
-      <div className="navbar mb-4 rounded-box bg-base-200">
+      <div className="navbar sticky top-2 z-20 mb-4 flex-wrap gap-2 rounded-box bg-base-200/90 shadow backdrop-blur">
         <div className="flex-1 px-2 text-lg font-semibold">Lead assignment</div>
-        <div role="tablist" className="tabs tabs-box mr-4">
+        <div role="tablist" className="tabs tabs-box tabs-sm">
           {(["board", "leads", "notifications"] as const).map((t) => (
             <button key={t} role="tab" className={`tab ${tab === t ? "tab-active" : ""}`} onClick={() => setTab(t)}>
               {t === "notifications" ? (
@@ -132,7 +166,7 @@ export function Dashboard() {
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 whitespace-nowrap pr-2 text-sm">
           Act as
           <select
             className="select select-sm"
@@ -148,15 +182,31 @@ export function Dashboard() {
       </div>
 
       {toast && (
-        <div role="alert" className={`alert mb-4 ${toast.kind === "error" ? "alert-error" : "alert-success"}`}>
-          <span>{toast.text}</span>
-          <button className="btn btn-ghost btn-xs" onClick={() => setToast(null)}>Dismiss</button>
+        <div className="toast toast-end toast-bottom z-50">
+          <div role="alert" className={`alert shadow-lg ${toast.kind === "error" ? "alert-error" : "alert-success"}`}>
+            <span>{toast.text}</span>
+            <button className="btn btn-ghost btn-xs" aria-label="Dismiss" onClick={() => setToast(null)}>✕</button>
+          </div>
         </div>
       )}
-      {!loaded && <p className="opacity-60">Loading…</p>}
+      {!loaded && (
+        <div className="space-y-4" aria-busy="true">
+          <div className="skeleton h-20 w-full" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="skeleton h-64" />
+            <div className="skeleton h-64" />
+          </div>
+        </div>
+      )}
 
       {tab === "board" && (
         <div className="space-y-4">
+          <div className="stats stats-vertical w-full bg-base-100 shadow sm:stats-horizontal">
+            <Stat title="Agents online" value={`${onlineAgents.length}/${agents.length}`} />
+            <Stat title="Queued" value={queue.length} desc={`${queue.filter((q) => q.parked_at).length} need attention`} />
+            <Stat title="Leads" value={leads.length} />
+            <Stat title="Unread" value={unread} desc={`for ${agentName.get(actingAs) ?? "—"}`} />
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <section className="card bg-base-100 shadow">
               <div className="card-body p-4">
@@ -164,12 +214,12 @@ export function Dashboard() {
                 <ul className="divide-y divide-base-200">
                   {agents.map((a) => (
                     <li key={a.id} className="flex items-center gap-3 py-2">
-                      <span className="w-6 text-sm opacity-60">{a.sort_order}</span>
+                      <Initials name={a.name} online={a.is_online} />
                       <span className="flex-1">
                         {a.name}
                         {a.id === lastAgentId && <span className="badge badge-info badge-sm ml-2">last assigned</span>}
                       </span>
-                      <span className={`badge ${a.is_online ? "badge-success" : "badge-ghost"}`}>{a.is_online ? "online" : "offline"}</span>
+                      <span className={`badge badge-sm hidden sm:inline-flex ${a.is_online ? "badge-success" : "badge-ghost"}`}>{a.is_online ? "online" : "offline"}</span>
                       <input
                         type="checkbox" className="toggle toggle-success toggle-sm" checked={a.is_online}
                         aria-label={`Toggle ${a.name} online`}
@@ -184,15 +234,15 @@ export function Dashboard() {
             <section className="card bg-base-100 shadow">
               <div className="card-body p-4">
                 <h2 className="card-title text-base">Lead queue <span className="badge">{queue.length}</span></h2>
-                {queue.length === 0 && <p className="text-sm opacity-60">Nothing waiting.</p>}
+                {queue.length === 0 && <Empty>🎉 Queue is clear — nothing waiting.</Empty>}
                 <ul className="divide-y divide-base-200">
                   {queue.map((row) => (
                     <li key={row.id} className="py-2">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-sm">{row.external_lead_id}</span>
                         <span className="flex-1 truncate">{row.name}</span>
-                        {row.parked_at && <span className="badge badge-warning">Needs attention</span>}
-                        {!row.parked_at && row.attempts > 0 && <span className="badge badge-ghost">retry {row.attempts}</span>}
+                        {row.parked_at && <span className="badge badge-warning badge-sm">Needs attention</span>}
+                        {!row.parked_at && row.attempts > 0 && <span className="badge badge-ghost badge-sm">retry {row.attempts}</span>}
                       </div>
                       {row.last_error && <p className="mt-1 truncate text-xs text-error" title={row.last_error}>{row.last_error}</p>}
                       <div className="mt-1 flex items-center gap-2">
@@ -224,7 +274,7 @@ export function Dashboard() {
             <div className="card-body p-4">
               <h2 className="card-title text-base">Assignment record</h2>
               <div className="overflow-x-auto">
-                <table className="table table-sm">
+                <table className="table table-sm table-zebra">
                   <thead><tr><th>#</th><th>Lead</th><th>Agent</th><th>Reason</th><th>From</th><th>By</th><th>Time</th></tr></thead>
                   <tbody>
                     {events.map((e) => (
@@ -238,7 +288,7 @@ export function Dashboard() {
                         <td>{time(e.created_at)}</td>
                       </tr>
                     ))}
-                    {events.length === 0 && <tr><td colSpan={7} className="opacity-60">No assignments yet.</td></tr>}
+                    {events.length === 0 && <tr><td colSpan={7}><Empty>No assignments yet.</Empty></td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -248,7 +298,7 @@ export function Dashboard() {
       )}
 
       {tab === "leads" && (
-        <div className="grid gap-4 md:grid-cols-[1fr_22rem]">
+        <div className="grid gap-4 md:grid-cols-[1fr_22rem] md:items-start">
           <div className="card bg-base-100 shadow">
             <div className="card-body overflow-x-auto p-4">
               <table className="table table-sm">
@@ -260,10 +310,10 @@ export function Dashboard() {
                       <td>{l.contacts[0]?.name}</td>
                       <td>{l.project}</td>
                       <td>{agentName.get(l.assigned_agent_id)}</td>
-                      <td><span className="badge badge-sm">{l.status}</span></td>
+                      <td><span className={`badge badge-sm ${statusBadge(l.status)}`}>{l.status}</span></td>
                     </tr>
                   ))}
-                  {leads.length === 0 && <tr><td colSpan={5} className="opacity-60">No assigned leads yet.</td></tr>}
+                  {leads.length === 0 && <tr><td colSpan={5}><Empty>No assigned leads yet.</Empty></td></tr>}
                 </tbody>
               </table>
             </div>
@@ -273,7 +323,7 @@ export function Dashboard() {
               key={selectedLead.id} lead={selectedLead} agents={agents} agentName={agentName} actingAs={actingAs} act={act}
             />
           ) : (
-            <div className="card bg-base-100 shadow"><div className="card-body p-4 text-sm opacity-60">Select a lead.</div></div>
+            <div className="card bg-base-100 shadow"><div className="card-body items-center justify-center p-4 text-sm opacity-60">Select a lead to see details.</div></div>
           )}
         </div>
       )}
@@ -298,7 +348,7 @@ export function Dashboard() {
                   <span className="text-xs opacity-60">{time(n.created_at)}</span>
                 </li>
               ))}
-              {notifications.length === 0 && <li className="py-2 opacity-60">No notifications.</li>}
+              {notifications.length === 0 && <li><Empty>You&apos;re all caught up.</Empty></li>}
             </ul>
           </div>
         </section>
@@ -328,7 +378,7 @@ function LeadDetail({
   return (
     <div className="card bg-base-100 shadow">
       <div className="card-body gap-3 p-4">
-        <h2 className="card-title text-base">{lead.external_lead_id}</h2>
+        <h2 className="card-title text-base">{lead.external_lead_id} <span className={`badge badge-sm ${statusBadge(lead.status)}`}>{lead.status}</span></h2>
         <div className="text-sm">
           {lead.contacts.map((c, i) => (
             <p key={i}>{[c.name, c.phone, c.email].filter(Boolean).join(" · ")}</p>
@@ -337,20 +387,20 @@ function LeadDetail({
           {lead.message && <p className="mt-1 italic">“{lead.message}”</p>}
         </div>
 
-        <label className="form-control">
-          <span className="label-text mb-1">Status</span>
+        <label className="fieldset p-0">
+          <span className="fieldset-legend p-0">Status</span>
           <select
-            className="select select-sm" value={lead.status}
+            className="select select-sm w-full" value={lead.status}
             onChange={(e) => act(`/api/leads/${lead.id}/status`, "PATCH", { status: e.target.value, changedBy: actingAs || null })}
           >
             {STATUSES.map((s) => <option key={s}>{s}</option>)}
           </select>
         </label>
 
-        <label className="form-control">
-          <span className="label-text mb-1">Owner: {agentName.get(lead.assigned_agent_id)}</span>
+        <label className="fieldset p-0">
+          <span className="fieldset-legend p-0">Owner: {agentName.get(lead.assigned_agent_id)}</span>
           <select
-            className="select select-sm" defaultValue="" disabled={targets.length === 0}
+            className="select select-sm w-full" defaultValue="" disabled={targets.length === 0}
             onChange={(e) => {
               if (!e.target.value) return;
               act(`/api/leads/${lead.id}/reassign`, "POST", { agentId: e.target.value, assignedBy: actingAs || null }, "Lead reassigned");
@@ -362,9 +412,9 @@ function LeadDetail({
           </select>
         </label>
 
-        <label className="form-control">
-          <span className="label-text mb-1">Notes</span>
-          <textarea className="textarea textarea-sm h-24" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <label className="fieldset p-0">
+          <span className="fieldset-legend p-0">Notes</span>
+          <textarea className="textarea textarea-sm h-24 w-full" value={notes} onChange={(e) => setNotes(e.target.value)} />
           <button
             className="btn btn-sm btn-primary mt-2 self-start" disabled={notes === (lead.notes ?? "")}
             onClick={() => act(`/api/leads/${lead.id}/notes`, "PATCH", { notes }, "Notes saved")}
@@ -375,9 +425,16 @@ function LeadDetail({
 
         <div>
           <h3 className="mb-1 text-sm font-semibold">Status history</h3>
-          <ul className="text-sm">
-            {history.map((h) => (
-              <li key={h.id}>{h.status} <span className="opacity-60">· {time(h.created_at)}{h.changed_by ? ` · ${agentName.get(h.changed_by) ?? ""}` : ""}</span></li>
+          <ul className="timeline timeline-vertical timeline-compact timeline-snap-icon text-sm">
+            {history.map((h, i) => (
+              <li key={h.id}>
+                {i > 0 && <hr />}
+                <div className="timeline-middle"><span className="status status-primary" /></div>
+                <div className="timeline-end timeline-box py-1">
+                  {h.status} <span className="opacity-60">· {time(h.created_at)}{h.changed_by ? ` · ${agentName.get(h.changed_by) ?? ""}` : ""}</span>
+                </div>
+                {i < history.length - 1 && <hr />}
+              </li>
             ))}
           </ul>
         </div>
