@@ -166,7 +166,7 @@ export function Dashboard() {
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-2 pr-2 text-sm">
+        <label className="flex items-center gap-2 whitespace-nowrap pr-2 text-sm">
           Act as
           <select
             className="select select-sm"
