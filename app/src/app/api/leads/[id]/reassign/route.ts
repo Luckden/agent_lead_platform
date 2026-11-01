@@ -8,11 +8,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!uuid.safeParse(id).success) return json({ error: "Invalid lead id" }, 400);
   const body = await readJson(request, assignBody);
   if (!body.ok) return body.response;
+  if (body.data.actorRole !== "admin") return json({ error: "Only an admin can do this" }, 403);
 
   const { data, error } = await supabaseAdmin().rpc("reassign_lead", {
     p_lead_id: id,
     p_agent_id: body.data.agentId,
-    p_assigned_by: body.data.assignedBy ?? null,
+    p_admin: true,
   });
   if (error) return sqlErrorResponse(error);
   return json(data);

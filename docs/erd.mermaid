@@ -71,6 +71,7 @@ erDiagram
         int sequence_no
         text reason "auto, manual or reassigned"
         uuid assigned_by FK "nullable; null means system"
+        boolean assigned_by_admin "true for admin overrides (ADR-0021)"
         timestamptz created_at
     }
 

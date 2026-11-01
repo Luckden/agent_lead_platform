@@ -15,7 +15,8 @@ The take-home brief asks for the interface to assign a lead to an agent. ADR-001
 - For a queued lead, create the assigned `leads` row and its contacts, first status history row, assignment event, and recipient notification, then delete the queue row. Use `reason = 'manual'`, `previous_agent_id = NULL`, and the operator's agent ID in `assigned_by`.
 - For a reassignment, update `leads.assigned_agent_id`, append an event with `reason = 'reassigned'`, the prior owner in `previous_agent_id`, and the operator in `assigned_by`, and create a notification for the new owner. Preserve the lead's status and notes.
 - Manual assignments increment `assignment_state.last_sequence_no` and set `last_assigned_agent_id` to the recipient. The next automatic assignment therefore continues after the most recently assigned agent, whether the previous assignment was automatic or manual.
-- The act-as-agent selection supplies `assigned_by` for this assessment. It is an attribution convenience, not authenticated identity; production authorization is out of scope.
+- Amended by ADR-0021: only the Admin role can perform overrides, and admin overrides are flagged with `assigned_by_admin` instead of recording an agent in `assigned_by`.
+- The act-as-agent selection supplied `assigned_by` for this assessment. It is an attribution convenience, not authenticated identity; production authorization is out of scope.
 - Reject a manual assignment when the selected target is offline. Eligibility remains consistent with ADR-0018.
 
 ## Consequences

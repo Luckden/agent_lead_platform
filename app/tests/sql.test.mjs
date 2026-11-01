@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 
-const migration = readFileSync(new URL("../supabase/migrations/20261101000000_initial_schema.sql", import.meta.url), "utf8");
+const migrationFiles = ["20261101000000_initial_schema.sql", "20261102000000_admin_overrides.sql"];
+const migrations = migrationFiles.map((f) => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
 const seed = readFileSync(new URL("../supabase/seed.sql", import.meta.url), "utf8");
 
 const AGENTS = ["Agent A", "Agent B", "Agent C", "Agent D"];
@@ -37,7 +38,7 @@ const owner = async (ext) => (await one("select a.name from leads l join agents 
 
 before(async () => {
   db = new PGlite();
-  await db.exec(migration);
+  for (const m of migrations) await db.exec(m);
   await db.exec(seed);
 });
 
@@ -131,7 +132,8 @@ test("manual assignment, offline rejection, reassignment", async () => {
   const r = await send();
   const queued = await one("select id from lead_queue where external_lead_id=$1", [r.external_lead_id]);
   const seqBefore = (await one("select last_sequence_no s from assignment_state")).s;
-  await assert.rejects(fn("manual_assign", queued.id, await agent("Agent B"), await agent("Agent A")), /agent_offline/);
+  await assert.rejects(fn("manual_assign", queued.id, await agent("Agent B"), true), /agent_offline/);
+  await assert.rejects(fn("manual_assign", queued.id, await agent("Agent B"), false), /admin_required/);
   assert.equal((await one("select count(*)::int c from lead_queue where id=$1", [queued.id])).c, 1);
   assert.equal((await one("select last_sequence_no s from assignment_state")).s, seqBefore);
 
@@ -139,11 +141,12 @@ test("manual assignment, offline rejection, reassignment", async () => {
   await db.query("update lead_queue set parked_at = now() where id=$1", [queued.id]);
   await online("Agent B", true);
   await online("Agent C", true);
-  const res = await fn("manual_assign", queued.id, await agent("Agent B"), await agent("Agent C"));
+  const res = await fn("manual_assign", queued.id, await agent("Agent B"), true);
   const ev = await one("select * from assignment_events where lead_id=$1", [res.lead_id]);
   assert.equal(ev.reason, "manual");
   assert.equal(ev.previous_agent_id, null);
-  assert.equal(ev.assigned_by, await agent("Agent C"));
+  assert.equal(ev.assigned_by, null);
+  assert.equal(ev.assigned_by_admin, true);
   assert.equal(ev.sequence_no, seqBefore + 1);
   assert.equal((await one("select count(*)::int c from notifications where assignment_event_id=$1", [ev.id])).c, 1);
   assert.equal((await one("select last_assigned_agent_id a from assignment_state")).a, await agent("Agent B"));
@@ -153,16 +156,18 @@ test("manual assignment, offline rejection, reassignment", async () => {
 
   await fn("update_lead_status", res.lead_id, "contacted", await agent("Agent B"));
   await db.query("update leads set notes='call back' where id=$1", [res.lead_id]);
-  await assert.rejects(fn("reassign_lead", res.lead_id, await agent("Agent B")), /same_agent/);
-  await assert.rejects(fn("reassign_lead", res.lead_id, await agent("Agent A")), /agent_offline/);
-  await fn("reassign_lead", res.lead_id, await agent("Agent C"), await agent("Agent B"));
+  await assert.rejects(fn("reassign_lead", res.lead_id, await agent("Agent B"), true), /same_agent/);
+  await assert.rejects(fn("reassign_lead", res.lead_id, await agent("Agent A"), true), /agent_offline/);
+  await assert.rejects(fn("reassign_lead", res.lead_id, await agent("Agent C"), false), /admin_required/);
+  await fn("reassign_lead", res.lead_id, await agent("Agent C"), true);
   const lead = await one("select * from leads where id=$1", [res.lead_id]);
   assert.equal(lead.assigned_agent_id, await agent("Agent C"));
   assert.equal(lead.status, "contacted");
   assert.equal(lead.notes, "call back");
   const rev = await one("select * from assignment_events where lead_id=$1 and reason='reassigned'", [res.lead_id]);
   assert.equal(rev.previous_agent_id, await agent("Agent B"));
-  assert.equal(rev.assigned_by, await agent("Agent B"));
+  assert.equal(rev.assigned_by, null);
+  assert.equal(rev.assigned_by_admin, true);
   assert.equal((await one("select count(*)::int c from notifications where assignment_event_id=$1 and agent_id=$2", [rev.id, await agent("Agent C")])).c, 1);
 });
 

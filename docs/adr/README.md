@@ -20,7 +20,9 @@
 | [0016](0016-ui-data-access.md) | Writes via API routes; browser reads via Realtime | Accepted |
 | [0017](0017-duplicate-matching-links-identifiers.md) | Duplicate matching links identifiers to one lead | Accepted |
 | [0018](0018-smaller-decisions.md) | Smaller decisions (status, eligibility, notifications, deletes, token) | Accepted |
-| [0019](0019-manual-assignment-overrides.md) | Manual assignment and reassignment as operator overrides | Accepted |
+| [0019](0019-manual-assignment-overrides.md) | Manual assignment and reassignment as operator overrides | Accepted (actor rule amended by 0021) |
 | [0020](0020-serialize-duplicate-matching-across-queue-and-leads.md) | Serialize duplicate matching across queue and assigned leads | Accepted |
+| [0021](0021-admin-role-gate-for-overrides.md) | Shallow admin role gate for assignment overrides | Accepted |
+| [0022](0022-for-me-view.md) | "For me" view replaces the Notifications tab | Accepted |
 
-Related: [RFC-0001](../rfc/0001-lead-intake-and-assignment.md), [RFC-0002](../rfc/0002-assignment-overrides-and-duplicate-safety.md), [ERD](../erd.mermaid).
+Related: [RFC-0003](../rfc/0003-admin-role-and-for-me-view.md), [RFC-0001](../rfc/0001-lead-intake-and-assignment.md), [RFC-0002](../rfc/0002-assignment-overrides-and-duplicate-safety.md), [ERD](../erd.mermaid).

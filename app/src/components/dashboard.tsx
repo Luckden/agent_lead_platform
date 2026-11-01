@@ -11,7 +11,7 @@ type QueueRow = {
 };
 type EventRow = {
   id: string; sequence_no: number; reason: string; agent_id: string; previous_agent_id: string | null;
-  assigned_by: string | null; created_at: string; lead: { external_lead_id: string } | null;
+  assigned_by: string | null; assigned_by_admin: boolean; created_at: string; lead: { external_lead_id: string } | null;
 };
 type Lead = {
   id: string; external_lead_id: string; assigned_agent_id: string; status: LeadStatus; notes: string | null;
@@ -21,7 +21,7 @@ type Lead = {
 type Notification = { id: string; message: string; is_read: boolean; created_at: string };
 type HistoryRow = { id: string; status: string; changed_by: string | null; created_at: string };
 
-type Tab = "board" | "leads" | "notifications";
+type Tab = "board" | "leads" | "me";
 
 async function call(path: string, method: string, body?: unknown): Promise<string | null> {
   const res = await fetch(path, {
@@ -127,10 +127,12 @@ export function Dashboard() {
     const t = setTimeout(() => setActingChoice(window.localStorage.getItem("actingAs") ?? ""), 0);
     return () => clearTimeout(t);
   }, []);
-  const actingAs = agents.some((a) => a.id === actingChoice) ? actingChoice : (agents[0]?.id ?? "");
+  // ADR-0021: "Admin" is a self-declared role, not an agent. Only admin sees the assign and reassign controls.
+  const isAdmin = !agents.some((a) => a.id === actingChoice);
+  const actingAs = isAdmin ? "" : actingChoice;
 
   const loadNotifications = useCallback(async () => {
-    if (!actingAs) return;
+    if (!actingAs) { setNotifications([]); return; }
     const { data } = await supabaseBrowser()
       .from("notifications").select("id, message, is_read, created_at")
       .eq("agent_id", actingAs).order("created_at", { ascending: false }).limit(50);
@@ -152,16 +154,18 @@ export function Dashboard() {
 
   const onlineAgents = agents.filter((a) => a.is_online);
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? null;
+  const myLeads = leads.filter((l) => l.assigned_agent_id === actingAs);
+  const myLead = myLeads.find((l) => l.id === selectedLeadId) ?? null;
 
   return (
     <div className="mx-auto w-full max-w-6xl p-4">
       <div className="navbar sticky top-2 z-20 mb-4 flex-wrap gap-2 rounded-box bg-base-200/90 shadow backdrop-blur">
         <div className="flex-1 px-2 text-lg font-semibold">Lead assignment</div>
         <div role="tablist" className="tabs tabs-box tabs-sm">
-          {(["board", "leads", "notifications"] as const).map((t) => (
+          {(["board", "leads", "me"] as const).map((t) => (
             <button key={t} role="tab" className={`tab ${tab === t ? "tab-active" : ""}`} onClick={() => setTab(t)}>
-              {t === "notifications" ? (
-                <>Notifications {unread > 0 && <span className="badge badge-primary badge-sm ml-1">{unread}</span>}</>
+              {t === "me" ? (
+                <>For me {unread > 0 && <span className="badge badge-primary badge-sm ml-1">{unread}</span>}</>
               ) : t === "board" ? "Live board" : "Leads"}
             </button>
           ))}
@@ -170,12 +174,13 @@ export function Dashboard() {
           Act as
           <select
             className="select select-sm"
-            value={actingAs}
+            value={isAdmin ? "admin" : actingAs}
             onChange={(e) => {
               setActingChoice(e.target.value);
               window.localStorage.setItem("actingAs", e.target.value);
             }}
           >
+            <option value="admin">Admin</option>
             {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </label>
@@ -205,7 +210,7 @@ export function Dashboard() {
             <Stat title="Agents online" value={`${onlineAgents.length}/${agents.length}`} />
             <Stat title="Queued" value={queue.length} desc={`${queue.filter((q) => q.parked_at).length} need attention`} />
             <Stat title="Leads" value={leads.length} />
-            <Stat title="Unread" value={unread} desc={`for ${agentName.get(actingAs) ?? "—"}`} />
+            <Stat title="Unread" value={unread} desc={isAdmin ? "pick an agent" : `for ${agentName.get(actingAs)}`} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <section className="card bg-base-100 shadow">
@@ -246,17 +251,17 @@ export function Dashboard() {
                       </div>
                       {row.last_error && <p className="mt-1 truncate text-xs text-error" title={row.last_error}>{row.last_error}</p>}
                       <div className="mt-1 flex items-center gap-2">
-                        <select
+                        {isAdmin && <select
                           className="select select-xs" defaultValue="" aria-label={`Assign ${row.external_lead_id}`}
                           onChange={(e) => {
                             if (!e.target.value) return;
-                            act(`/api/queue/${row.id}/assign`, "POST", { agentId: e.target.value, assignedBy: actingAs || null }, `Assigned ${row.external_lead_id}`);
+                            act(`/api/queue/${row.id}/assign`, "POST", { agentId: e.target.value, actorRole: "admin" }, `Assigned ${row.external_lead_id}`);
                             e.target.value = "";
                           }}
                         >
                           <option value="">Assign to…</option>
                           {onlineAgents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                        </select>
+                        </select>}
                         {row.parked_at && (
                           <button className="btn btn-xs" onClick={() => act(`/api/queue/${row.id}/reset`, "POST", undefined, "Returned to queue")}>
                             Retry
@@ -284,7 +289,7 @@ export function Dashboard() {
                         <td>{agentName.get(e.agent_id)}</td>
                         <td><span className={`badge badge-sm ${e.reason === "auto" ? "badge-ghost" : "badge-accent"}`}>{e.reason}</span></td>
                         <td>{e.previous_agent_id ? agentName.get(e.previous_agent_id) : "—"}</td>
-                        <td>{e.assigned_by ? agentName.get(e.assigned_by) : "system"}</td>
+                        <td>{e.assigned_by_admin ? "admin" : e.assigned_by ? agentName.get(e.assigned_by) : "system"}</td>
                         <td>{time(e.created_at)}</td>
                       </tr>
                     ))}
@@ -320,7 +325,7 @@ export function Dashboard() {
           </div>
           {selectedLead ? (
             <LeadDetail
-              key={selectedLead.id} lead={selectedLead} agents={agents} agentName={agentName} actingAs={actingAs} act={act}
+              key={selectedLead.id} lead={selectedLead} agents={agents} agentName={agentName} actingAs={actingAs} isAdmin={isAdmin} act={act}
             />
           ) : (
             <div className="card bg-base-100 shadow"><div className="card-body items-center justify-center p-4 text-sm opacity-60">Select a lead to see details.</div></div>
@@ -328,39 +333,74 @@ export function Dashboard() {
         </div>
       )}
 
-      {tab === "notifications" && (
+      {tab === "me" && (isAdmin ? (
         <section className="card bg-base-100 shadow">
-          <div className="card-body p-4">
-            <div className="flex items-center">
-              <h2 className="card-title flex-1 text-base">Notifications for {agentName.get(actingAs)}</h2>
-              <button
-                className="btn btn-sm" disabled={unread === 0}
-                onClick={async () => { await act("/api/notifications/read", "POST", { agentId: actingAs }); loadNotifications(); }}
-              >
-                Mark all read
-              </button>
-            </div>
-            <ul className="divide-y divide-base-200">
-              {notifications.map((n) => (
-                <li key={n.id} className="flex items-center gap-2 py-2">
-                  {!n.is_read && <span className="badge badge-primary badge-xs" />}
-                  <span className={`flex-1 ${n.is_read ? "opacity-60" : ""}`}>{n.message}</span>
-                  <span className="text-xs opacity-60">{time(n.created_at)}</span>
-                </li>
-              ))}
-              {notifications.length === 0 && <li><Empty>You&apos;re all caught up.</Empty></li>}
-            </ul>
-          </div>
+          <div className="card-body p-4"><Empty>You are acting as Admin. Pick an agent in “Act as” to see their notifications and leads.</Empty></div>
         </section>
-      )}
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
+          <section className="card bg-base-100 shadow">
+            <div className="card-body p-4">
+              <div className="flex items-center">
+                <h2 className="card-title flex-1 text-base">My notifications</h2>
+                <button
+                  className="btn btn-sm" disabled={unread === 0}
+                  onClick={async () => { await act("/api/notifications/read", "POST", { agentId: actingAs }); loadNotifications(); }}
+                >
+                  Mark all read
+                </button>
+              </div>
+              <ul className="divide-y divide-base-200">
+                {notifications.map((n) => (
+                  <li key={n.id} className="flex items-center gap-2 py-2">
+                    {!n.is_read && <span className="badge badge-primary badge-xs" />}
+                    <span className={`flex-1 ${n.is_read ? "opacity-60" : ""}`}>{n.message}</span>
+                    <span className="text-xs opacity-60">{time(n.created_at)}</span>
+                  </li>
+                ))}
+                {notifications.length === 0 && <li><Empty>You&apos;re all caught up.</Empty></li>}
+              </ul>
+            </div>
+          </section>
+
+          <section className="card bg-base-100 shadow">
+            <div className="card-body p-4">
+              <h2 className="card-title text-base">My leads <span className="badge">{myLeads.length}</span></h2>
+              <ul className="divide-y divide-base-200">
+                {myLeads.map((l) => (
+                  <li key={l.id}>
+                    <button
+                      className={`flex w-full items-center gap-2 py-2 text-left ${l.id === selectedLeadId ? "font-semibold" : ""}`}
+                      onClick={() => setSelectedLeadId(l.id)}
+                    >
+                      <span className="font-mono text-sm">{l.external_lead_id}</span>
+                      <span className="flex-1 truncate">{l.contacts[0]?.name}</span>
+                      <span className={`badge badge-sm ${statusBadge(l.status)}`}>{l.status}</span>
+                    </button>
+                  </li>
+                ))}
+                {myLeads.length === 0 && <li><Empty>No leads assigned to you.</Empty></li>}
+              </ul>
+            </div>
+          </section>
+
+          {myLead && (
+            <div className="md:col-span-2">
+              <LeadDetail
+                key={myLead.id} lead={myLead} agents={agents} agentName={agentName} actingAs={actingAs} isAdmin={isAdmin} act={act}
+              />
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
 
 function LeadDetail({
-  lead, agents, agentName, actingAs, act,
+  lead, agents, agentName, actingAs, isAdmin, act,
 }: {
-  lead: Lead; agents: Agent[]; agentName: Map<string, string>; actingAs: string;
+  lead: Lead; agents: Agent[]; agentName: Map<string, string>; actingAs: string; isAdmin: boolean;
   act: (path: string, method: string, body?: unknown, success?: string) => Promise<void>;
 }) {
   const [notes, setNotes] = useState(lead.notes ?? "");
@@ -397,20 +437,21 @@ function LeadDetail({
           </select>
         </label>
 
-        <label className="fieldset p-0">
+        {!isAdmin && <p className="text-sm">Owner: {agentName.get(lead.assigned_agent_id)}</p>}
+        {isAdmin && <label className="fieldset p-0">
           <span className="fieldset-legend p-0">Owner: {agentName.get(lead.assigned_agent_id)}</span>
           <select
             className="select select-sm w-full" defaultValue="" disabled={targets.length === 0}
             onChange={(e) => {
               if (!e.target.value) return;
-              act(`/api/leads/${lead.id}/reassign`, "POST", { agentId: e.target.value, assignedBy: actingAs || null }, "Lead reassigned");
+              act(`/api/leads/${lead.id}/reassign`, "POST", { agentId: e.target.value, actorRole: "admin" }, "Lead reassigned");
               e.target.value = "";
             }}
           >
             <option value="">{targets.length ? "Reassign to…" : "No other agent online"}</option>
             {targets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-        </label>
+        </label>}
 
         <label className="fieldset p-0">
           <span className="fieldset-legend p-0">Notes</span>

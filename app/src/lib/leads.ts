@@ -52,7 +52,8 @@ export function toIntakeArgs(lead: IncomingLead) {
 
 // Used by the write routes below.
 export const uuid = z.string().uuid();
-export const assignBody = z.object({ agentId: uuid, assignedBy: uuid.nullable().optional() });
+// ADR-0021: the acting role is self-declared; only "admin" may use the override routes.
+export const assignBody = z.object({ agentId: uuid, actorRole: z.enum(["admin", "agent"]) });
 export const statusBody = z.object({ status: z.enum(STATUSES), changedBy: uuid.nullable().optional() });
 export const presenceBody = z.object({ isOnline: z.boolean() });
 export const notesBody = z.object({ notes: z.string().max(10000) });

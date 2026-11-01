@@ -6,7 +6,7 @@ Incoming lead API, round-robin assignment, and a live board. Design lives in `..
 ## Setup
 
 1. Create an empty Supabase project.
-2. Apply `supabase/migrations/20261101000000_initial_schema.sql` (SQL editor, or `supabase db push`),
+2. Apply the files in `supabase/migrations/` in order (SQL editor, or `supabase db push`),
    then `supabase/seed.sql` (agents A-D; A, B, C online).
 3. `cp .env.example .env.local` and fill in the URL, anon key, service role key and `INCOMING_API_TOKEN`.
 4. `npm install && npm run dev`, then open http://localhost:3000.
@@ -23,9 +23,9 @@ then run with `SUPABASE_SERVICE_ROLE_KEY` and `INCOMING_API_TOKEN` as environmen
 |---|---|
 | `POST /api/leads/incoming` | Bearer `INCOMING_API_TOKEN`. 201 assigned, 202 queued, 200 duplicate, 400 invalid, 401 unauthorized, 500 error. Every request is logged in `webhook_events`. |
 | `PATCH /api/agents/:id/presence` | `{ isOnline }`. Going online drains the queue. |
-| `POST /api/queue/:id/assign` | `{ agentId, assignedBy? }`. Manual assignment of a queued or parked lead (409 if the agent is offline). |
+| `POST /api/queue/:id/assign` | `{ agentId, actorRole }`, admin only (403 otherwise). Manual assignment of a queued or parked lead (409 if the agent is offline). |
 | `POST /api/queue/:id/reset` | Return a parked lead to the queue. |
-| `POST /api/leads/:id/reassign` | `{ agentId, assignedBy? }`. Reassign to a different online agent; status and notes are kept. |
+| `POST /api/leads/:id/reassign` | `{ agentId, actorRole }`, admin only (403 otherwise). Reassign to a different online agent; status and notes are kept. |
 | `PATCH /api/leads/:id/status` | `{ status, changedBy? }`: `assigned`, `contacted`, `qualified`, `closed`. |
 | `PATCH /api/leads/:id/notes` | `{ notes }`. |
 | `POST /api/notifications/read` | `{ agentId }`. Mark all read. |
@@ -71,5 +71,5 @@ npm run smoke      # against a running app and seeded Supabase: 401, 400, 200 du
 
 ## Known gaps
 
-No authentication (act-as dropdown), a single static bearer token without rate limiting, anyone with the anon
+No authentication (act-as dropdown with a self-declared Admin role), a single static bearer token without rate limiting, anyone with the anon
 key can read lead contact details, and no heartbeat-based auto-offline.

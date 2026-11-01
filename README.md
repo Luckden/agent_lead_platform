@@ -10,7 +10,7 @@ assigns them round-robin to online agents, notifies the agent, and shows everyth
 ## Setup
 
 1. Create a Supabase project.
-2. In the SQL editor run `app/supabase/migrations/20261101000000_initial_schema.sql`, then `app/supabase/seed.sql`
+2. In the SQL editor run each file in `app/supabase/migrations/` in order, then `app/supabase/seed.sql`
    (agents A–D; A, B, C online, D offline).
 3. In `app/`: copy `.env.example` to `.env.local` and fill in the project URL, anon key, service role key and a
    value for `INCOMING_API_TOKEN` (any secret string you choose).
@@ -22,9 +22,9 @@ assigns them round-robin to online agents, notifies the agent, and shows everyth
 |---|---|
 | `POST /api/leads/incoming` | Receive a lead. Header `Authorization: Bearer <INCOMING_API_TOKEN>`. 201 assigned, 202 queued (no agent online), 200 duplicate, 400 invalid, 401 bad token, 500 error. Every request is logged in `webhook_events`. |
 | `PATCH /api/agents/:id/presence` | `{ "isOnline": true }`. Going online assigns any waiting leads. |
-| `POST /api/queue/:id/assign` | `{ agentId, assignedBy? }`. Manually assign a queued or parked lead (409 if the agent is offline). |
+| `POST /api/queue/:id/assign` | `{ agentId, actorRole }`, admin only (403 otherwise). Manually assign a queued or parked lead (409 if the agent is offline). |
 | `POST /api/queue/:id/reset` | Return a parked lead to the queue. |
-| `POST /api/leads/:id/reassign` | `{ agentId, assignedBy? }`. Move a lead to another online agent; status and notes stay. |
+| `POST /api/leads/:id/reassign` | `{ agentId, actorRole }`, admin only (403 otherwise). Move a lead to another online agent; status and notes stay. |
 | `PATCH /api/leads/:id/status` | `{ status }`: `assigned`, `contacted`, `qualified`, `closed`. |
 | `PATCH /api/leads/:id/notes` | `{ notes }`. |
 | `POST /api/notifications/read` | `{ agentId }`. Mark that agent's notifications read. |
@@ -101,5 +101,5 @@ npm run demo       # sends 20 leads, one per second, to watch the board live
 
 ## Known gaps
 
-No real authentication (the act-as dropdown is attribution only), one static bearer token with no rate limiting,
+No real authentication (the act-as dropdown and its Admin role are self-declared; the admin check on assign/reassign only prevents mistakes), one static bearer token with no rate limiting,
 anyone holding the anon key can read lead contact details, and no heartbeat-based auto-offline.

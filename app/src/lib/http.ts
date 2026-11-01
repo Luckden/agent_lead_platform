@@ -35,6 +35,7 @@ export async function readJson<T extends z.ZodType>(request: Request, schema: T)
 
 // Business errors raised by the SQL functions, mapped to HTTP codes.
 const SQL_ERRORS: Record<string, [number, string]> = {
+  admin_required: [403, "Only an admin can do this"],
   agent_offline: [409, "The selected agent is offline"],
   agent_not_found: [404, "Agent not found"],
   queue_row_not_found: [404, "Queued lead not found (it may already be assigned)"],
