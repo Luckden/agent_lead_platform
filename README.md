@@ -58,7 +58,7 @@ curl -X POST http://localhost:3000/api/leads/incoming \
 Required fields are `leadId`, `name` and a phone or email. Phone is stored as digits only and email lowercased.
 A duplicate (same `leadId`, phone or email, in the queue or on an assigned lead) returns 200 and creates no new
 lead or assignment; identifiers the existing lead lacks are attached to it. All online agents are eligible.
-"Act as agent" replaces login; there is no authentication. See the [ADRs](docs/adr/README.md) for the rest.
+"Act as" replaces login; there is no authentication. It lists Admin (the only role that can assign or reassign leads) and the agents ("For me" shows the selected agent's notifications and leads). The role is self-declared, see ADR-0021. See the [ADRs](docs/adr/README.md) for the rest.
 
 ## Testing steps
 
@@ -73,7 +73,7 @@ with the curl command above, changing `leadId` and `phone` each time.
    the lead is assigned and leaves the queue.
 6. Post the same `leadId`, phone or email again: 200 with `"duplicate": true`, no new assignment.
 7. Post `{}` or use a wrong token: 400 / 401. Both appear in `webhook_events`.
-8. On the Leads tab, open a lead, change its status, add a note and reassign it to another online agent.
+8. Set "Act as" to Admin. On the Leads tab, open a lead, change its status, add a note and reassign it to another online agent. Switch to an agent: the reassign control is gone, and `POST /api/leads/:id/reassign` with `"actorRole":"agent"` returns 403. The agent's "For me" tab lists their notifications and leads.
 
 Automated:
 
@@ -93,8 +93,9 @@ npm run demo       # sends 20 leads, one per second, to watch the board live
 - Against the real Supabase project: four test leads went to three online agents in rotation (201). A 20-lead
   run (`npm run demo`) accepted all 20 while agents were switched on and off: leads sent while nobody was online
   returned 202 and were assigned as agents came online.
-- In the browser: toggling presence, live updates of the feed and notification badge, status change, saving notes
-  and reassigning a lead were all checked on the running UI.
+- In the browser (before the admin gate was added): toggling presence, live updates of the feed and notification badge,
+  status change, saving notes and reassigning a lead. After it: the Admin prompt and an agent's "For me" tab were
+  checked on the running UI; the admin-only rule (`admin_required` / 403) is covered by `npm run test:sql`.
 - `npm run smoke` against the real project: 401, 400 and duplicate checks passed, and 10 parallel leads with two
   agents online all returned 201 and split 5 and 5 (no lost or double assignment).
 - Not tested: the `pg_cron` sweep (it may not exist on every plan; `POST /api/sweep` is the alternative).
