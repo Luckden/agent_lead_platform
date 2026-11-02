@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       baseline:
-        description: "Mark 20261101000000 as already applied (first migration was run by hand)"
+        description: "Mark 20261101000000 and 20261102000000 as already applied (they were run by hand)"
         type: boolean
         default: false
 
@@ -47,6 +47,6 @@ jobs:
 
       - name: Baseline first migration
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.baseline }}
-        run: supabase migration repair --status applied 20261101000000
+        run: supabase migration repair --status applied 20261101000000 20261102000000
 
       - run: supabase db push
