@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - "app/supabase/migrations/**"
+      - ".github/workflows/supabase-migrations.yml"
   workflow_dispatch:
     inputs:
       baseline:
@@ -46,7 +47,9 @@ jobs:
       - run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Baseline first migration
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.baseline }}
+        # These two were applied by hand before CI existed. Repairing is repeatable and only names them,
+        # so it is safe on every push; later migrations are applied by db push.
+        if: ${{ github.event_name == 'push' || inputs.baseline }}
         run: supabase migration repair --status applied 20261101000000 20261102000000
 
       - run: supabase db push
