@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:sql": "node --test tests/sql.test.mjs",
-    "smoke": "node scripts/smoke.mjs",
+    "smoke": "node --env-file=.env.local scripts/smoke.mjs",
     "demo": "node --env-file=.env.local scripts/live-demo.mjs"
   },
   "dependencies": {
